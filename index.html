@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Corte Neón 3D</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+    <style>
+      * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+      html, body {
+        margin: 0; padding: 0; width: 100%; height: 100%;
+        overflow: hidden; background: #070913; color: #f8fafc;
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        touch-action: none;
+      }
+      .display { font-family: 'Oxanium', system-ui, sans-serif; }
+      #canvas-wrap { position: fixed; inset: 0; z-index: 0; }
+      #skeleton-canvas { position: fixed; inset: 0; z-index: 5; pointer-events: none; width: 100%; height: 100%; }
+
+      /* Cámara aparte en la esquina inferior derecha */
+      #cam-box {
+        position: fixed; right: 12px; bottom: 12px; z-index: 15;
+        border-radius: 12px; overflow: hidden;
+        border: 1px solid rgba(34, 211, 238, 0.45);
+        background: rgba(11, 16, 32, 0.95);
+        box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+        display: none; pointer-events: none;
+      }
+      #cam-video {
+        width: 180px; height: 135px; object-fit: cover; display: block;
+        transform: scaleX(-1);
+      }
+      #cam-label {
+        font-size: 11px; text-align: center; padding: 3px 6px;
+        color: #a5f3fc; border-top: 1px solid rgba(255,255,255,0.1);
+      }
+
+      /* HUD superior */
+      #hud {
+        position: fixed; top: 8px; left: 8px; right: 8px; z-index: 20;
+        display: none; flex-direction: column; align-items: center; gap: 6px;
+        pointer-events: none;
+      }
+      .hud-bar {
+        pointer-events: auto; width: 100%; max-width: 1380px;
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+        padding: 8px 12px; border-radius: 12px;
+        background: rgba(11, 16, 32, 0.92);
+        border: 1px solid rgba(255,255,255,0.12);
+      }
+      .stats { display: flex; align-items: center; gap: 14px; font-variant-numeric: tabular-nums; }
+      .stat-label { font-size: 12px; color: #94a3b8; margin-right: 4px; }
+      .score-val { font-size: 22px; font-weight: 800; color: #67e8f9; }
+      .combo-val { font-size: 17px; font-weight: 700; color: #f472b6; }
+      .lives-val { font-size: 18px; letter-spacing: 2px; color: #fb7185; }
+      .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+      .seg {
+        display: flex; gap: 2px; padding: 2px; border-radius: 8px;
+        background: #0f172a; border: 1px solid rgba(255,255,255,0.1);
+      }
+      button {
+        font-family: inherit; cursor: pointer; border: none;
+        border-radius: 7px; padding: 6px 10px; font-size: 12px; font-weight: 600;
+        color: #cbd5e1; background: transparent; white-space: nowrap;
+        transition: background 0.15s, color 0.15s, transform 0.1s;
+      }
+      button:hover { color: #fff; background: rgba(255,255,255,0.08); }
+      button.active-cyan { background: #06b6d4; color: #020617; }
+      button.active-pink { background: #ec4899; color: #fff; }
+      .btn-outline { background: #0f172a; border: 1px solid rgba(255,255,255,0.14); color: #e2e8f0; }
+      .btn-pause { background: rgba(245, 158, 11, 0.18); border: 1px solid rgba(251, 191, 36, 0.35); color: #fde68a; }
+      #cam-notice {
+        display: none; pointer-events: auto;
+        padding: 4px 12px; border-radius: 8px; font-size: 12px;
+        background: rgba(11, 16, 32, 0.9); border: 1px solid rgba(6, 182, 212, 0.25); color: #cffafe;
+      }
+
+      /* Botón de patada abajo a la izquierda */
+      #kick-btn {
+        position: fixed; left: 16px; bottom: 16px; z-index: 20; display: none;
+        padding: 12px 18px; border-radius: 12px; font-size: 14px; font-weight: 700;
+        background: rgba(11, 16, 32, 0.92); color: #f9a8d4;
+        border: 1px solid rgba(244, 114, 182, 0.45);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+      }
+
+      /* Modales */
+      .modal-bg {
+        position: fixed; inset: 0; z-index: 30;
+        display: flex; align-items: center; justify-content: center;
+        padding: 16px; background: rgba(0, 0, 0, 0.55);
+      }
+      .modal-card {
+        width: 100%; max-width: 640px; border-radius: 18px;
+        background: rgba(11, 16, 32, 0.96);
+        border: 1px solid rgba(34, 211, 238, 0.3);
+        padding: 26px; text-align: center;
+        box-shadow: 0 24px 60px rgba(0,0,0,0.7);
+      }
+      .title { font-size: 38px; font-weight: 800; margin: 0; }
+      .title span { color: #22d3ee; }
+      .subtitle { color: #cbd5e1; font-size: 14px; line-height: 1.5; margin: 10px auto 20px; max-width: 500px; }
+      .diff-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 18px; }
+      .diff-btn {
+        padding: 10px; border-radius: 10px; background: #0f172a;
+        border: 1px solid rgba(255,255,255,0.12); color: #e2e8f0;
+      }
+      .diff-btn.selected { border-color: #f472b6; background: rgba(236, 72, 153, 0.22); color: #fff; }
+      .mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+      .mode-btn {
+        padding: 14px 10px; border-radius: 12px; font-size: 14px; font-weight: 700;
+        background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #fff;
+      }
+      .mode-btn.primary { background: #06b6d4; color: #020617; border-color: #22d3ee; }
+      @media (max-width: 640px) {
+        .mode-grid { grid-template-columns: 1fr; }
+        #cam-video { width: 132px; height: 99px; }
+      }
+
+      /* Textos flotantes */
+      #banners { position: fixed; inset: 0; z-index: 12; pointer-events: none; overflow: hidden; }
+      .banner {
+        position: absolute; transform: translate(-50%, -50%);
+        font-family: 'Oxanium', sans-serif; font-weight: 800; font-size: 24px;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.9);
+      }
+      @keyframes shake {
+        0%, 100% { transform: translate3d(0,0,0); }
+        20% { transform: translate3d(-10px, 6px, 0); }
+        40% { transform: translate3d(10px, -8px, 0); }
+        60% { transform: translate3d(-8px, 5px, 0); }
+        80% { transform: translate3d(6px, -4px, 0); }
+      }
+      .shaking { animation: shake 0.4s ease; }
+    </style>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.174.0/build/three.module.js",
+          "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/vision_bundle.mjs"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="canvas-wrap"></div>
+    <canvas id="skeleton-canvas"></canvas>
+    <div id="banners"></div>
+
+    <!-- Cámara aparte en esquina -->
+    <div id="cam-box">
+      <video id="cam-video" autoplay playsinline muted></video>
+      <div id="cam-label">Cámara corporal</div>
+    </div>
+
+    <!-- HUD superior -->
+    <header id="hud">
+      <div class="hud-bar">
+        <div class="stats">
+          <div><span class="stat-label">Puntos</span><span id="ui-score" class="display score-val">0</span></div>
+          <div><span class="stat-label">Mejor Racha</span><span id="ui-combo" class="display combo-val">x0</span></div>
+          <div id="ui-lives" class="lives-val">♥♥♥♥♥</div>
+        </div>
+        <div class="controls">
+          <div class="seg">
+            <button id="m-camera">Cámara</button>
+            <button id="m-mouse" class="active-cyan">Ratón</button>
+            <button id="m-touch">Teléfono</button>
+          </div>
+          <div class="seg">
+            <button id="d-facil" class="active-pink">Fácil</button>
+            <button id="d-medio">Medio</button>
+            <button id="d-dificil">Difícil</button>
+          </div>
+          <button id="btn-skel" class="btn-outline" style="display:none;">Ocultar Esqueleto</button>
+          <button id="btn-sound" class="btn-outline">Sonido: Sí</button>
+          <button id="btn-pause" class="btn-pause">Pausa</button>
+          <button id="btn-restart" class="btn-outline">Reiniciar</button>
+        </div>
+      </div>
+      <div id="cam-notice">Aléjate 1.5 metros de la cámara para tener espacio libre y no golpear nada alrededor.</div>
+    </header>
+
+    <button id="kick-btn" class="display">Patear (Espacio)</button>
+
+    <!-- Pantalla de inicio -->
+    <div id="start-modal" class="modal-bg">
+      <div class="modal-card">
+        <h1 class="display title">Corte <span>Neón 3D</span></h1>
+        <p class="subtitle">
+          Empuña dos espadas láser en primera persona. Corta frutas en el aire con tus manos, ratón o dedo,
+          y lanza patadas para hacer puntos dobles o despejar bombas.
+        </p>
+        <div class="diff-grid">
+          <button class="diff-btn selected" data-diff="facil"><strong class="display">Fácil</strong><br><small>5 vidas · Suave</small></button>
+          <button class="diff-btn" data-diff="medio"><strong class="display">Medio</strong><br><small>3 vidas · Normal</small></button>
+          <button class="diff-btn" data-diff="dificil"><strong class="display">Difícil</strong><br><small>3 vidas · Rápido</small></button>
+        </div>
+        <div class="mode-grid">
+          <button id="start-camera" class="mode-btn primary display">Activar Cámara y Jugar</button>
+          <button id="start-mouse" class="mode-btn display">Jugar con Ratón</button>
+          <button id="start-touch" class="mode-btn display">Jugar en Teléfono</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Pausa -->
+    <div id="pause-modal" class="modal-bg" style="display:none;">
+      <div class="modal-card" style="max-width:360px;">
+        <h2 class="display" style="margin:0 0 10px;">Juego en Pausa</h2>
+        <p class="subtitle" style="margin-bottom:18px;">Pulsa Reanudar para seguir cortando.</p>
+        <button id="btn-resume" class="mode-btn primary display" style="width:100%; margin-bottom:8px;">Reanudar</button>
+        <button id="btn-pause-restart" class="mode-btn" style="width:100%;">Reiniciar</button>
+      </div>
+    </div>
+
+    <!-- Modal Game Over -->
+    <div id="over-modal" class="modal-bg" style="display:none;">
+      <div class="modal-card" style="max-width:400px;">
+        <h2 class="display" style="margin:0 0 8px;">¡Fin de la Partida!</h2>
+        <p id="over-summary" class="subtitle"></p>
+        <button id="btn-over-restart" class="mode-btn primary display" style="width:100%;">Jugar de Nuevo</button>
+      </div>
+    </div>
+
+    <script type="module">
+      import * as THREE from 'three';
+      import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
+
+      // --- AUDIO WEB AUDIO API ---
+      let audioCtx = null;
+      let soundOn = true;
+      function ensureAudio() {
+        if (!soundOn) return null;
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+      }
+      function playTone(freqStart, freqEnd, dur, type = 'sawtooth', vol = 0.14) {
+        const ctx = ensureAudio();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(freqStart, now);
+        o.frequency.exponentialRampToValueAtTime(freqEnd, now + dur);
+        g.gain.setValueAtTime(vol, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        o.connect(g); g.connect(ctx.destination);
+        o.start(now); o.stop(now + dur + 0.02);
+      }
+
+      // --- CONFIGURACIÓN Y ESTADO ---
+      const DIFFS = {
+        facil:   { lives: 5, scale: 1.24, gravity: -10.5, minY: 9.8,  maxY: 11.4, interval: 1700, minW: 1, maxW: 2, bomb: 0.10 },
+        medio:   { lives: 3, scale: 1.00, gravity: -13.5, minY: 11.2, maxY: 13.0, interval: 1320, minW: 2, maxW: 3, bomb: 0.20 },
+        dificil: { lives: 3, scale: 0.88, gravity: -16.8, minY: 12.6, maxY: 14.8, interval: 940,  minW: 3, maxW: 5, bomb: 0.31 }
+      };
+      let phase = 'start';
+      let mode = 'mouse';
+      let diff = 'facil';
+      let showSkeleton = true;
+      let score = 0, bestCombo = 0, comboCount = 0, comboTimer = 0;
+      let lives = 5, maxLives = 5;
+
+      // --- THREE.JS ESCENARIO 3D ---
+      const wrap = document.getElementById('canvas-wrap');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x070913);
+      scene.fog = new THREE.FogExp2(0x070913, 0.036);
+
+      const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.1, 100);
+      camera.position.set(0, 1.2, 10.8);
+      camera.lookAt(0, 1.1, 0);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      wrap.appendChild(renderer.domElement);
+
+      scene.add(new THREE.HemisphereLight(0x67e8f9, 0x1e1b4b, 1.0));
+      const key = new THREE.DirectionalLight(0xfff1e6, 1.5);
+      key.position.set(5, 9, 8);
+      scene.add(key);
+
+      const grid = new THREE.GridHelper(50, 40, 0x06b6d4, 0x1e293b);
+      grid.position.y = -4.2;
+      scene.add(grid);
+
+      // Modelos compartidos
+      const sphereGeo = new THREE.SphereGeometry(0.55, 18, 12);
+      const hemiTopGeo = new THREE.SphereGeometry(0.55, 18, 9, 0, Math.PI * 2, 0, Math.PI * 0.5);
+      const hemiBotGeo = new THREE.SphereGeometry(0.55, 18, 9, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5);
+      const fruitColors = { watermelon: 0x22c55e, orange: 0xf97316, apple: 0xef4444, golden: 0xfacc15 };
+      const juiceColors = { watermelon: 0xef4444, orange: 0xf97316, apple: 0xfef3c7, golden: 0xfde047 };
+      const fruitMats = {
+        watermelon: new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.35 }),
+        orange: new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.45 }),
+        apple: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.28 }),
+        golden: new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xca8a04, emissiveIntensity: 0.4, metalness: 0.7, roughness: 0.2 }),
+        bomb: new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.4 })
+      };
+
+      function createHandSword(hex, sideSign) {
+        const g = new THREE.Group();
+        const gloveMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.35, metalness: 0.75 });
+        const trimMat = new THREE.MeshStandardMaterial({ color: hex, emissive: hex, emissiveIntensity: 1.4 });
+        const palm = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.28, 0.16), gloveMat);
+        palm.position.set(0.06 * sideSign, -0.22, 0.05);
+        g.add(palm);
+        const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.022, 8, 16), trimMat);
+        cuff.position.set(0.06 * sideSign, -0.34, 0.1);
+        cuff.rotation.x = Math.PI / 2 + 0.5;
+        g.add(cuff);
+        const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.44, 10), gloveMat);
+        hilt.position.set(0, -0.22, 0);
+        g.add(hilt);
+        const core = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.02, 1.95, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        core.position.set(0, 1.0, 0);
+        g.add(core);
+        const aura = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.06, 2.0, 10), new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+        aura.position.set(0, 1.0, 0);
+        g.add(aura);
+        g.visible = false;
+        scene.add(g);
+        return g;
+      }
+
+      function createBoot(hex) {
+        const g = new THREE.Group();
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.22, 0.58), new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.75 }));
+        const sole = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.08, 0.62), new THREE.MeshStandardMaterial({ color: hex, emissive: hex, emissiveIntensity: 1.5 }));
+        sole.position.y = -0.12;
+        g.add(body, sole);
+        g.visible = false;
+        scene.add(g);
+        return g;
+      }
+
+      const leftSword = createHandSword(0x06b6d4, -1);
+      const rightSword = createHandSword(0xec4899, 1);
+      const leftBoot = createBoot(0x06b6d4);
+      const rightBoot = createBoot(0xec4899);
+
+      const entities = [];
+      const halves = [];
+      const particles = [];
+      const partGeo = new THREE.SphereGeometry(0.09, 6, 5);
+
+      let visH = 4.4, visW = 7;
+      function updateBounds() {
+        visH = Math.tan(THREE.MathUtils.degToRad(23)) * camera.position.z;
+        visW = visH * camera.aspect;
+      }
+      updateBounds();
+
+      function normToWorld(nx, ny, target) {
+        const v = new THREE.Vector3(nx * 2 - 1, -(ny * 2 - 1), 0.5).unproject(camera);
+        const dir = v.sub(camera.position).normalize();
+        const t = -camera.position.z / dir.z;
+        target.copy(camera.position).addScaledVector(dir, t);
+      }
+
+      function addBanner(text, color, xPct, yPct) {
+        const el = document.createElement('div');
+        el.className = 'banner';
+        el.textContent = text;
+        el.style.color = color;
+        el.style.left = xPct + '%';
+        el.style.top = yPct + '%';
+        document.getElementById('banners').appendChild(el);
+        setTimeout(() => el.remove(), 800);
+      }
+
+      function spawnWave() {
+        const cfg = DIFFS[diff];
+        const count = THREE.MathUtils.randInt(cfg.minW, cfg.maxW);
+        for (let i = 0; i < count; i++) {
+          const isBomb = Math.random() < cfg.bomb;
+          const kind = isBomb ? 'bomb' : (Math.random() < 0.12 ? 'golden' : ['watermelon', 'orange', 'apple'][Math.floor(Math.random() * 3)]);
+          const g = new THREE.Group();
+          g.add(new THREE.Mesh(sphereGeo, fruitMats[kind]));
+          if (kind === 'bomb') {
+            const spark = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfbbf24 }));
+            spark.position.set(0.18, 0.62, 0);
+            g.add(spark);
+          }
+          g.scale.setScalar(cfg.scale);
+          const x = THREE.MathUtils.randFloat(-visW * 0.68, visW * 0.68);
+          g.position.set(x, 1.1 - visH - 0.9 - i * 0.35, 0);
+          scene.add(g);
+          entities.push({
+            kind, mesh: g, pos: g.position,
+            vel: new THREE.Vector3(-x * 0.45, THREE.MathUtils.randFloat(cfg.minY, cfg.maxY), 0),
+            rot: new THREE.Vector3(Math.random() * 3, Math.random() * 3, Math.random() * 2),
+            radius: 0.62 * cfg.scale, sliced: false
+          });
+        }
+      }
+
+      function burstParticles(pos, hex, count) {
+        const mat = new THREE.MeshBasicMaterial({ color: hex });
+        for (let i = 0; i < count; i++) {
+          const m = new THREE.Mesh(partGeo, mat);
+          m.position.copy(pos);
+          scene.add(m);
+          particles.push({
+            mesh: m,
+            vel: new THREE.Vector3((Math.random() - 0.5) * 9, Math.random() * 6 + 1, (Math.random() - 0.5) * 4),
+            life: 0.55
+          });
+        }
+      }
+
+      function sliceEntity(ent, isKick = false) {
+        if (ent.sliced) return;
+        ent.sliced = true;
+        const scr = ent.pos.clone().project(camera);
+        const sx = ((scr.x + 1) * 0.5) * 100;
+        const sy = ((-scr.y + 1) * 0.5) * 100;
+
+        if (ent.kind === 'bomb') {
+          if (isKick) {
+            ent.sliced = false;
+            ent.vel.set(ent.pos.x >= 0 ? 12 : -12, 14, -5);
+            score += 15;
+            playTone(320, 960, 0.15, 'sine', 0.16);
+            addBanner('¡DESPEJE! +15', '#22d3ee', sx, sy);
+            syncHud();
+            return;
+          }
+          burstParticles(ent.pos, 0xff5500, 22);
+          playTone(150, 35, 0.4, 'sawtooth', 0.3);
+          document.body.classList.add('shaking');
+          setTimeout(() => document.body.classList.remove('shaking'), 420);
+          lives = Math.max(0, lives - 1);
+          comboCount = 0;
+          addBanner('¡BOOM! -1 Vida', '#fb7185', sx, sy);
+          syncHud();
+          if (lives <= 0) {
+            phase = 'gameover';
+            document.getElementById('over-summary').textContent = `Puntos finales: ${score} · Mejor Racha: x${bestCombo}`;
+            document.getElementById('over-modal').style.display = 'flex';
+          }
+          return;
+        }
+
+        const basePts = ent.kind === 'golden' ? 50 : 10;
+        const pts = isKick ? basePts * 2 : basePts;
+        score += pts;
+        const mTop = new THREE.Mesh(hemiTopGeo, fruitMats[ent.kind]);
+        const mBot = new THREE.Mesh(hemiBotGeo, fruitMats[ent.kind]);
+        mTop.position.copy(ent.pos); mBot.position.copy(ent.pos);
+        mTop.scale.copy(ent.mesh.scale); mBot.scale.copy(ent.mesh.scale);
+        scene.add(mTop, mBot);
+        halves.push({ mesh: mTop, vel: new THREE.Vector3(-2.5, 4, 0.8), life: 2 });
+        halves.push({ mesh: mBot, vel: new THREE.Vector3(2.5, 3, -0.8), life: 2 });
+        burstParticles(ent.pos, juiceColors[ent.kind], 14);
+        if (isKick) {
+          playTone(180, 48, 0.16, 'sine', 0.25);
+          addBanner(`¡PATADA! +${pts}`, '#f472b6', sx, sy);
+        } else {
+          playTone(ent.kind === 'golden' ? 1050 : 750, 220, 0.12);
+          comboCount++; comboTimer = 0.32;
+          if (comboCount > bestCombo) bestCombo = comboCount;
+          if (ent.kind === 'golden') addBanner('¡FRUTA DORADA! +50', '#fde047', sx, sy);
+        }
+        syncHud();
+      }
+
+      // --- CONTROLES RATÓN / TELÉFONO / PATADA ---
+      const pointer = { active: false, down: false, x: 0.65, y: 0.7, px: 0.65, py: 0.7 };
+      const bladeTip = new THREE.Vector3();
+      const prevTip = new THREE.Vector3();
+      let manualKick = 0;
+
+      function triggerKick() {
+        if (phase !== 'playing' || manualKick > 0.05) return;
+        manualKick = 0.34;
+        playTone(190, 50, 0.15, 'sine', 0.28);
+      }
+
+      wrap.addEventListener('pointerdown', (e) => {
+        if (mode === 'camera' || phase !== 'playing') return;
+        ensureAudio();
+        pointer.active = true; pointer.down = true;
+        pointer.x = e.clientX / window.innerWidth; pointer.y = e.clientY / window.innerHeight;
+      });
+      wrap.addEventListener('pointermove', (e) => {
+        if (mode === 'camera' || phase !== 'playing') return;
+        if (mode === 'touch' && !pointer.down) return;
+        pointer.active = true;
+        pointer.x = e.clientX / window.innerWidth; pointer.y = e.clientY / window.innerHeight;
+      });
+      window.addEventListener('pointerup', () => { pointer.down = false; if (mode === 'touch') pointer.active = false; });
+      wrap.addEventListener('contextmenu', (e) => { if (phase === 'playing' && mode === 'mouse') { e.preventDefault(); triggerKick(); } });
+      window.addEventListener('keydown', (e) => { if (e.code === 'Space' && phase === 'playing') { e.preventDefault(); triggerKick(); } });
+
+      // --- MEDIAPIPE POSE (CÁMARA) ---
+      let landmarker = null, poseFrame = null, camStream = null;
+      const videoEl = document.getElementById('cam-video');
+      const skelCanvas = document.getElementById('skeleton-canvas');
+      const skelCtx = skelCanvas.getContext('2d');
+      function resizeSkel() { skelCanvas.width = window.innerWidth; skelCanvas.height = window.innerHeight; }
+      resizeSkel();
+
+      async function startCamera() {
+        document.getElementById('cam-box').style.display = 'block';
+        try {
+          camStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }, audio: false });
+          videoEl.srcObject = camStream;
+          await videoEl.play();
+          if (!landmarker) {
+            const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21/wasm');
+            landmarker = await PoseLandmarker.createFromOptions(vision, {
+              baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task', delegate: 'GPU' },
+              runningMode: 'VIDEO', numPoses: 1
+            });
+          }
+          let lastT = -1;
+          const detectLoop = () => {
+            if (mode !== 'camera') return;
+            const now = performance.now();
+            if (videoEl.readyState >= 2 && videoEl.videoWidth > 0 && videoEl.currentTime !== lastT) {
+              lastT = videoEl.currentTime;
+              const res = landmarker.detectForVideo(videoEl, now);
+              poseFrame = res.landmarks && res.landmarks[0] ? res.landmarks[0].map(p => ({ x: 1 - p.x, y: p.y, v: p.visibility ?? 1 })) : null;
+            }
+            requestAnimationFrame(detectLoop);
+          };
+          detectLoop();
+        } catch (err) {
+          alert('No se pudo abrir la cámara. Asegúrate de abrir este archivo desde localhost/HTTPS o juega con Ratón.');
+          setMode('mouse');
+        }
+      }
+
+      function stopCamera() {
+        document.getElementById('cam-box').style.display = 'none';
+        if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+        poseFrame = null;
+      }
+
+      // --- UI Y BOTONES ---
+      function syncHud() {
+        document.getElementById('ui-score').textContent = score;
+        document.getElementById('ui-combo').textContent = 'x' + bestCombo;
+        document.getElementById('ui-lives').textContent = '♥'.repeat(lives) + '♡'.repeat(Math.max(0, maxLives - lives));
+      }
+
+      function setMode(next) {
+        mode = next;
+        ['camera', 'mouse', 'touch'].forEach(m => {
+          document.getElementById('m-' + m).className = (m === next) ? 'active-cyan' : '';
+        });
+        document.getElementById('btn-skel').style.display = next === 'camera' ? 'inline-block' : 'none';
+        document.getElementById('cam-notice').style.display = next === 'camera' ? 'block' : 'none';
+        if (next === 'camera') startCamera(); else stopCamera();
+      }
+
+      function setDiff(next) {
+        diff = next;
+        ['facil', 'medio', 'dificil'].forEach(d => {
+          document.getElementById('d-' + d).className = (d === next) ? 'active-pink' : '';
+        });
+        document.querySelectorAll('.diff-btn').forEach(b => b.classList.toggle('selected', b.dataset.diff === next));
+        maxLives = DIFFS[next].lives;
+        lives = Math.min(lives, maxLives);
+        syncHud();
+      }
+
+      function startGame(chosenMode) {
+        ensureAudio();
+        if (chosenMode) setMode(chosenMode);
+        entities.forEach(e => scene.remove(e.mesh)); entities.length = 0;
+        halves.forEach(h => scene.remove(h.mesh)); halves.length = 0;
+        score = 0; bestCombo = 0; comboCount = 0;
+        maxLives = DIFFS[diff].lives; lives = maxLives;
+        syncHud();
+        document.getElementById('start-modal').style.display = 'none';
+        document.getElementById('pause-modal').style.display = 'none';
+        document.getElementById('over-modal').style.display = 'none';
+        document.getElementById('hud').style.display = 'flex';
+        document.getElementById('kick-btn').style.display = 'block';
+        phase = 'playing';
+        spawnTimer = 0.2;
+      }
+
+      document.querySelectorAll('.diff-btn').forEach(b => b.onclick = () => setDiff(b.dataset.diff));
+      document.getElementById('start-camera').onclick = () => startGame('camera');
+      document.getElementById('start-mouse').onclick = () => startGame('mouse');
+      document.getElementById('start-touch').onclick = () => startGame('touch');
+      document.getElementById('m-camera').onclick = () => setMode('camera');
+      document.getElementById('m-mouse').onclick = () => setMode('mouse');
+      document.getElementById('m-touch').onclick = () => setMode('touch');
+      document.getElementById('d-facil').onclick = () => setDiff('facil');
+      document.getElementById('d-medio').onclick = () => setDiff('medio');
+      document.getElementById('d-dificil').onclick = () => setDiff('dificil');
+      document.getElementById('btn-skel').onclick = (e) => {
+        showSkeleton = !showSkeleton;
+        e.target.textContent = showSkeleton ? 'Ocultar Esqueleto' : 'Mostrar Esqueleto';
+      };
+      document.getElementById('btn-sound').onclick = (e) => {
+        soundOn = !soundOn;
+        e.target.textContent = 'Sonido: ' + (soundOn ? 'Sí' : 'No');
+      };
+      document.getElementById('btn-pause').onclick = () => { phase = 'paused'; document.getElementById('pause-modal').style.display = 'flex'; };
+      document.getElementById('btn-resume').onclick = () => { phase = 'playing'; document.getElementById('pause-modal').style.display = 'none'; };
+      document.getElementById('btn-restart').onclick = () => startGame();
+      document.getElementById('btn-pause-restart').onclick = () => startGame();
+      document.getElementById('btn-over-restart').onclick = () => startGame();
+      document.getElementById('kick-btn').onclick = triggerKick;
+
+      // --- BUCLE PRINCIPAL 60 FPS ---
+      const clock = new THREE.Clock();
+      let spawnTimer = 0.5;
+      const upVec = new THREE.Vector3(0, 1, 0);
+
+      function updateSwordPose(sword, wrist, elbow) {
+        if (!wrist || wrist.v < 0.3) { sword.visible = false; return null; }
+        const w = new THREE.Vector3();
+        normToWorld(wrist.x, wrist.y, w);
+        const dir = new THREE.Vector3(0, 1, 0);
+        if (elbow && elbow.v > 0.25) {
+          const el = new THREE.Vector3();
+          normToWorld(elbow.x, elbow.y, el);
+          dir.copy(w).sub(el).normalize();
+        }
+        const tip = w.clone().addScaledVector(dir, 1.3);
+        sword.visible = true;
+        sword.position.set(w.x * 0.65, Math.min(w.y - 0.5, 0.8), 1.85);
+        const aim = tip.clone().sub(sword.position).normalize();
+        sword.quaternion.setFromUnitVectors(upVec, aim);
+        return tip;
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), 0.05);
+
+        skelCtx.clearRect(0, 0, skelCanvas.width, skelCanvas.height);
+
+        if (phase === 'playing') {
+          spawnTimer -= dt;
+          if (spawnTimer <= 0) {
+            spawnTimer = DIFFS[diff].interval / 1000;
+            spawnWave();
+          }
+
+          if (comboTimer > 0) {
+            comboTimer -= dt;
+            if (comboTimer <= 0) {
+              if (comboCount >= 2) {
+                score += comboCount * 10;
+                playTone(620, 930, 0.18, 'sine', 0.14);
+                addBanner(`COMBO x${comboCount}! +${comboCount * 10}`, '#22d3ee', 50, 35);
+                syncHud();
+              }
+              comboCount = 0;
+            }
+          }
+
+          const activeTips = [];
+          const activeBoots = [];
+
+          if (mode === 'camera' && poseFrame) {
+            if (showSkeleton) {
+              const pairs = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[27,31],[24,26],[26,28],[28,32]];
+              skelCtx.lineWidth = 3;
+              for (const [a, b] of pairs) {
+                const pA = poseFrame[a], pB = poseFrame[b];
+                if (pA.v > 0.3 && pB.v > 0.3) {
+                  skelCtx.strokeStyle = (a % 2 === 1) ? 'rgba(6,182,212,0.6)' : 'rgba(236,72,153,0.6)';
+                  skelCtx.beginPath();
+                  skelCtx.moveTo(pA.x * skelCanvas.width, pA.y * skelCanvas.height);
+                  skelCtx.lineTo(pB.x * skelCanvas.width, pB.y * skelCanvas.height);
+                  skelCtx.stroke();
+                }
+              }
+            }
+            const tL = updateSwordPose(leftSword, poseFrame[15], poseFrame[13]);
+            const tR = updateSwordPose(rightSword, poseFrame[16], poseFrame[14]);
+            if (tL) activeTips.push(tL);
+            if (tR) activeTips.push(tR);
+
+            // Pies para patear
+            for (const [boot, idx] of [[leftBoot, 31], [rightBoot, 32]]) {
+              const p = poseFrame[idx];
+              if (p && p.v > 0.28) {
+                normToWorld(p.x, p.y, boot.position);
+                boot.position.z = 0.4;
+                boot.visible = true;
+                if (boot.position.y > -2.3) activeBoots.push(boot.position);
+              } else { boot.visible = false; }
+            }
+          } else {
+            rightSword.visible = false;
+            leftBoot.visible = false;
+            if (pointer.active || mode === 'mouse') {
+              prevTip.copy(bladeTip);
+              normToWorld(pointer.x, pointer.y, bladeTip);
+              leftSword.visible = true;
+              leftSword.position.set(bladeTip.x * 0.48 + 0.85, Math.min(bladeTip.y - 1.1, -1.6), 2.1);
+              const aim = bladeTip.clone().sub(leftSword.position).normalize();
+              leftSword.quaternion.setFromUnitVectors(upVec, aim);
+              const speed = bladeTip.distanceTo(prevTip) / Math.max(dt, 0.001);
+              if (pointer.down || (mode === 'mouse' && speed > 3.2)) activeTips.push(bladeTip);
+            } else {
+              leftSword.visible = false;
+            }
+          }
+
+          if (manualKick > 0) {
+            manualKick = Math.max(0, manualKick - dt);
+            const t = 1 - manualKick / 0.34;
+            const arc = Math.sin(t * Math.PI);
+            rightBoot.visible = true;
+            rightBoot.position.set((t - 0.5) * 1.5, -2.8 + arc * 4.4, 1.4 - arc * 1.4);
+            activeBoots.push(rightBoot.position);
+          } else if (mode !== 'camera') {
+            rightBoot.visible = false;
+          }
+
+          const g = DIFFS[diff].gravity;
+          for (let i = entities.length - 1; i >= 0; i--) {
+            const ent = entities[i];
+            ent.vel.y += g * dt;
+            ent.pos.addScaledVector(ent.vel, dt);
+            ent.mesh.rotation.x += ent.rot.x * dt;
+            ent.mesh.rotation.y += ent.rot.y * dt;
+
+            for (const bp of activeBoots) {
+              if (!ent.sliced && bp.distanceTo(ent.pos) < ent.radius + 0.65) sliceEntity(ent, true);
+            }
+            for (const tp of activeTips) {
+              if (!ent.sliced && tp.distanceTo(ent.pos) < ent.radius + 0.55) sliceEntity(ent, false);
+            }
+            if (ent.sliced || ent.pos.y < -visH - 2) {
+              scene.remove(ent.mesh); entities.splice(i, 1);
+            }
+          }
+
+          for (let i = halves.length - 1; i >= 0; i--) {
+            const h = halves[i];
+            h.life -= dt; h.vel.y += g * dt;
+            h.mesh.position.addScaledVector(h.vel, dt);
+            h.mesh.rotation.z += dt * 4;
+            if (h.life <= 0) { scene.remove(h.mesh); halves.splice(i, 1); }
+          }
+          for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.life -= dt; p.vel.y -= 11 * dt;
+            p.mesh.position.addScaledVector(p.vel, dt);
+            p.mesh.scale.setScalar(Math.max(0, p.life * 1.8));
+            if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); }
+          }
+        }
+
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        updateBounds();
+        resizeSkel();
+      });
+    </script>
+  </body>
+</html>
